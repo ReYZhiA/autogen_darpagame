@@ -1,1 +1,3 @@
 OAI_CONFIG_LIST
+dragonexp_autogen_data/
+.cache/*
