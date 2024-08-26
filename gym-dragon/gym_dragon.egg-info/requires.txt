@@ -1,0 +1,4 @@
+gym==0.21.0
+matplotlib
+numpy>=1.23.3
+ray[rllib]>=2
