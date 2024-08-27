@@ -1,6 +1,6 @@
 name: Pylint
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   build:
@@ -21,6 +21,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install pylint
 
-    - name: Analysing the code with pylint
+    - name: Run pylint and annotate
+      continue-on-error: true
       run: |
-        pylint $(git ls-files '*.py') --disable=C0114,C0115,C0116 --exit-zero
+        pylint $(git ls-files '*.py') --disable=C0114,C0115,C0116 --exit-zero --output-format=parseable > pylint-output.txt
+
+    - name: Annotate pylint results
+      if: always()
+      run: |
+        sed 's/^/::warning file=/' pylint-output.txt | sed 's/:/:line=/' | sed 's/: /,col=/'
