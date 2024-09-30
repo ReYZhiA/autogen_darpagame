@@ -1,4 +1,4 @@
 OAI_API_KEYS
 OAI_CONFIG_LIST
-dragonexp_autogen_data/
 .cache/*
+__pycache__/*
