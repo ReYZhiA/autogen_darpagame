@@ -2,7 +2,7 @@ import argparse
 import autogen
 import json
 import os
-from dragonTextEnv import DragonTextEnv, ChatAgent
+from initial_paper.dragonTextEnv import DragonTextEnv, ChatAgent
 import numpy as np
 import time
 
