@@ -1,8 +1,12 @@
+import json
+import os
+import sqlite3
+
 import matplotlib.pyplot as plt
-from matplotlib.colors import to_rgba, to_hex
 import networkx as nx
 import pandas as pd
-import os
+from matplotlib.colors import to_rgba, to_hex
+from autogen import Agent, GroupChat
 
 
 # Function to blend colors
@@ -101,3 +105,124 @@ def update_graph(
 
     plt.savefig(os.path.join(output_dir, f"round_{round_number}.png"))
     plt.close()
+
+
+def get_log(dbname, table="chat_completions"):
+    con = sqlite3.connect(dbname)
+    query = f"SELECT * from {table}"
+    cursor = con.execute(query)
+    rows = cursor.fetchall()
+    column_names = [description[0] for description in cursor.description]
+    data = [dict(zip(column_names, row)) for row in rows]
+    con.close()
+    return data
+
+
+def str_to_dict(s):
+    return json.loads(s)
+
+
+def decode_actions(actions_dict, Action):
+    from initial_paper.gymdragon.gym_dragon.core import Tool
+
+    chat_agents = {}
+    agents_names = actions_dict.get("agents_names", [])
+    actions = actions_dict.get("agents_actions", [])
+    for agent_name, action in zip(agents_names, actions):
+        agent_name = agent_name.split("_")[-1]
+        if action.startswith("go_to_node_"):
+            room = int(action.split("_")[-1])
+            chat_agents[agent_name] = Action.go_to(room)
+        elif action == "inspect_bomb":
+            chat_agents[agent_name] = Action.inspect_bomb
+        elif action.startswith("apply"):
+            tool = action.split("_")[-2]
+            if tool == "red":
+                chat_agents[agent_name] = Action.use_tool(Tool.red)
+            elif tool == "green":
+                chat_agents[agent_name] = Action.use_tool(Tool.green)
+            elif tool == "blue":
+                chat_agents[agent_name] = Action.use_tool(Tool.blue)
+
+    return chat_agents
+
+
+def format_messages(messages, codenames):
+    # Variables to hold combined data
+    round_number = None
+    team_score = None
+    room_info = {}
+    actions = {}
+    results = {}
+    communication_messages = set()
+
+    # Parsing the messages
+    for i, message in enumerate(messages):
+        parts = message.split(". ")
+
+        # Extract round number and team score
+        if round_number is None:
+            round_number = parts[0].split(": ")[-1]
+            team_score = parts[1].split(": ")[-1]
+
+        # Extract specific information for each agent
+        room_content = parts[4].replace("Room contents: ", "")
+        action_taken = parts[3]
+        result_info = parts[2].replace("Results: ", "")
+
+        # Capture information specific to the agent
+        room_info[codenames[i]] = room_content
+        actions[codenames[i]] = action_taken
+        results[codenames[i]] = result_info
+
+        # Extract communication messages
+        comm_message = (
+            parts[-1]
+            .replace("Communication messages sent by your teammates: ", "")
+            .strip()
+        )
+        if comm_message:
+            communication_messages.add(comm_message)
+
+    # Construct the combined message
+    combined_message = (
+        f"Round: {round_number} ended. Total team score: {team_score}.\n\n"
+    )
+
+    for codename in codenames[: len(messages)]:
+        combined_message += f"{codename}:\n"
+        combined_message += (
+            f"- Room Content: {room_info.get(codename, 'No relevant information.')}\n"
+        )
+        combined_message += (
+            f"- Action: {actions.get(codename, 'No action recorded.')}\n"
+        )
+        combined_message += (
+            f"- Results: {results.get(codename, 'No results recorded.')}\n\n"
+        )
+
+    if communication_messages:
+        combined_message += "Communication messages sent by your teammates:\n"
+        for comm_message in communication_messages:
+            combined_message += f"- {comm_message}\n"
+    else:
+        combined_message += ""
+
+    combined_message += f"Round {int(round_number) +1} will start."
+    return combined_message
+
+
+def create_unique_filename(filename):
+    """
+    Check if a file already exists. If it exists, add _1, _2, etc., until a unique name is found.
+    Returns the unique filename.
+    """
+    base, extension = os.path.splitext(filename)
+    counter = 1
+    unique_filename = filename
+
+    while os.path.exists(unique_filename):
+        unique_filename = f"{base}_{counter}{extension}"
+        counter += 1
+
+    return unique_filename
